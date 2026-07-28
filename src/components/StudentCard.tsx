@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, UserCheck, UserRoundX, Trophy, AlertCircle, Award, CheckCircle2, XCircle, BookOpen } from "lucide-react";
+import { ArrowLeft, UserCheck, UserRoundX, Trophy, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { Applicant } from "@/types";
 import { programs } from "@/data/programs";
 import { useAdmissionsStore } from "@/stores/admissions";
@@ -46,7 +46,9 @@ export default function StudentCard({ student, onBack }: StudentCardProps) {
 
   const getAdmissionStatus = () => {
     for (const [programId, applicants] of Object.entries(competitionLists)) {
-      const applicant = applicants.find((a) => a.fullName === student.fullName);
+      const applicant = applicants.find((a) =>
+        (student.id && a.id ? a.id === student.id : a.fullName === student.fullName)
+      );
       if (applicant && applicant.status === "admitted") {
         const program = programs.find((p) => p.id === programId);
         const priorityIndex = student.priorities.indexOf(programId);
@@ -90,15 +92,26 @@ export default function StudentCard({ student, onBack }: StudentCardProps) {
                   {student.fullName}
                 </CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="bg-card border border-primary/30 px-4 py-2 text-sm font-semibold">
-                    <Trophy className="h-5 w-5 text-primary mr-2" />
-                    <span className="text-muted-foreground text-sm mr-1">
-                      Общий балл:
-                    </span>
-                    <strong className="text-primary text-base font-black">
-                      {formatScore(student.totalScore)}
-                    </strong>
-                  </Badge>
+                  {(() => {
+                    const scores = Object.values(student.programScores ?? {}).map(ps => ps.totalScore);
+                    const uniqueScores = [...new Set(scores)];
+                    const minScore = uniqueScores.length > 0 ? Math.min(...uniqueScores) : student.totalScore;
+                    const maxScore = uniqueScores.length > 0 ? Math.max(...uniqueScores) : student.totalScore;
+                    const hasRange = minScore !== maxScore;
+                    return (
+                      <Badge variant="outline" className="bg-card border border-primary/30 px-4 py-2 text-sm font-semibold">
+                        <Trophy className="h-5 w-5 text-primary mr-2" />
+                        <span className="text-muted-foreground text-sm mr-1">
+                          {hasRange ? 'Баллы:' : 'Балл:'}
+                        </span>
+                        <strong className="text-primary text-base font-black">
+                          {hasRange
+                            ? `${formatScore(minScore)} – ${formatScore(maxScore)}`
+                            : formatScore(maxScore)}
+                        </strong>
+                      </Badge>
+                    );
+                  })()}
 
                   {student.hasConsent ? (
                     <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-400 px-3 py-2 text-sm font-semibold border-green-300">
@@ -129,34 +142,6 @@ export default function StudentCard({ student, onBack }: StudentCardProps) {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Subject Scores & Achievements Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              {student.subjects && student.subjects.length > 0 ? (
-                student.subjects.map((sub, idx) => (
-                  <div key={idx} className="p-3 rounded-lg bg-muted/40 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                      <BookOpen className="h-3.5 w-3.5 text-primary" />
-                      <span>Предмет {idx + 1}</span>
-                    </div>
-                    <div className="font-semibold text-sm truncate">{sub.name}</div>
-                    <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-1">
-                      {formatScore(sub.score)}
-                    </div>
-                  </div>
-                ))
-              ) : null}
-
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex flex-col justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 font-semibold mb-1">
-                  <Award className="h-3.5 w-3.5 text-amber-600" />
-                  <span>Инд. достижения</span>
-                </div>
-                <div className="font-semibold text-sm text-amber-800 dark:text-amber-300">Баллы за ИД</div>
-                <div className="text-xl font-bold text-amber-700 dark:text-amber-400 mt-1">
-                  +{formatScore(student.achievementScore)}
-                </div>
-              </div>
-            </div>
 
             {admissionStatus.admitted && (
               <div className="rounded-lg bg-green-50 dark:bg-green-950/20 p-4 border border-green-200 dark:border-green-800">
@@ -196,6 +181,9 @@ export default function StudentCard({ student, onBack }: StudentCardProps) {
                       ? Math.min(...admittedApplicants.map((a) => a.totalScore))
                       : null;
 
+                  // Score for THIS specific program (from the program's own file)
+                  const programScore = student.programScores?.[programId] ?? null;
+
                   return (
                     <div key={programId} className="relative">
                       <Card
@@ -205,11 +193,12 @@ export default function StudentCard({ student, onBack }: StudentCardProps) {
                             : "shadow-sm hover:shadow-md"
                         }`}
                       >
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between">
+                        <CardContent className="p-3 space-y-2">
+                          {/* Top row: number + name + badge + score */}
+                          <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <div
-                                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
                                   isAdmittedHere
                                     ? "bg-green-600 text-white"
                                     : "bg-primary/10 text-primary"
@@ -224,7 +213,7 @@ export default function StudentCard({ student, onBack }: StudentCardProps) {
                                 </p>
                               </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right shrink-0">
                               {isAdmittedHere ? (
                                 <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-400 font-normal">
                                   Зачислен
@@ -234,16 +223,36 @@ export default function StudentCard({ student, onBack }: StudentCardProps) {
                                   {index + 1}-й приоритет
                                 </Badge>
                               )}
+                              <p className="text-sm font-bold text-primary mt-1">
+                                Мой балл: {programScore !== null ? formatScore(programScore.totalScore) : '—'}
+                              </p>
                               {minScore !== null && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Проходной балл:{" "}
-                                  <strong className="text-foreground">
+                                <p className="text-xs text-muted-foreground">
+                                  Проходной:{" "}
+                                  <strong className={programScore !== null && programScore.totalScore >= minScore ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}>
                                     {formatScore(minScore)}
                                   </strong>
                                 </p>
                               )}
                             </div>
                           </div>
+                          {/* Subjects row */}
+                          {programScore && programScore.subjects.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-200 dark:border-slate-700">
+                              {programScore.subjects.map((sub, si) => (
+                                <div key={si} className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 rounded-md px-2 py-1">
+                                  <span className="text-muted-foreground truncate max-w-[120px]">{sub.name}:</span>
+                                  <span className="font-bold text-foreground">{formatScore(sub.score)}</span>
+                                </div>
+                              ))}
+                              {programScore.achievementScore > 0 && (
+                                <div className="flex items-center gap-1.5 text-xs bg-amber-100 dark:bg-amber-900/40 rounded-md px-2 py-1">
+                                  <span className="text-amber-700 dark:text-amber-400">ИД:</span>
+                                  <span className="font-bold text-amber-700 dark:text-amber-400">+{formatScore(programScore.achievementScore)}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     </div>

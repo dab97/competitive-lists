@@ -15,6 +15,17 @@ function parseBool(val: any): boolean {
   return clean === '✓' || clean === '+' || clean === 'да' || clean === '1' || clean === 'true' || clean === 'сдано';
 }
 
+/** Parses a single consent column that can be: empty | checkmark/да | 'отказ' */
+function parseConsent(val: any): { hasConsent: boolean; hasRefusal: boolean } {
+  if (!val) return { hasConsent: false, hasRefusal: false };
+  const clean = String(val).trim().toLowerCase();
+  if (clean === 'отказ' || clean === 'отказано' || clean === 'отказался' || clean === 'отказалась') {
+    return { hasConsent: false, hasRefusal: true };
+  }
+  const consent = clean === '✓' || clean === '+' || clean === 'да' || clean === '1' || clean === 'true' || clean === 'сдано';
+  return { hasConsent: consent, hasRefusal: false };
+}
+
 function getProgramIdFromFileNameOrString(str: string): string | null {
   const lowerStr = str.toLowerCase();
 
@@ -70,20 +81,46 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
     ? rows.slice(headerIdx + 1).filter((r) => Array.isArray(r) && r.length > 1 && r[1])
     : rows.filter((r) => Array.isArray(r) && r.length >= 4);
 
-  const programId = getProgramIdFromFileNameOrString(fileName) || programs[0].id;
+  const programId = getProgramIdFromFileNameOrString(fileName);
+  if (!programId) {
+    throw new Error(`Не удалось определить направление подготовки по имени файла "${fileName}". Убедитесь, что в названии файла присутствует название направления (например, «Юриспруденция», «Менеджмент», «Психология»).`);
+  }
   const applicantMap = new Map<string, Applicant>();
+
+  /** Returns true if the row looks like a 1C / modern admissions export row (not legacy 4-col) */
+  function looksLikeModernFormat(cols: any[]): boolean {
+    if (cols.length < 13) return false;
+    // col[0] should be a row number (numeric)
+    const col0 = String(cols[0] ?? '').trim();
+    if (col0 !== '' && isNaN(parseFloat(col0.replace(',', '.')))) return false;
+    // col[1] should be a non-empty name string, not a number
+    const col1 = String(cols[1] ?? '').trim();
+    if (!col1 || col1.length < 3) return false;
+    if (!isNaN(parseFloat(col1))) return false; // pure number → not a name
+    // col[3] should be numeric (total score)
+    const col3 = String(cols[3] ?? '').trim();
+    if (col3 !== '' && isNaN(parseFloat(col3.replace(',', '.')))) return false;
+    // col[4] should be numeric (subjects sum)
+    const col4 = String(cols[4] ?? '').trim();
+    if (col4 !== '' && isNaN(parseFloat(col4.replace(',', '.')))) return false;
+    return true;
+  }
 
   dataRows.forEach((cols) => {
     let fullName = '';
+    let phone = '';
+    let email = '';
     let hasPreference = false;
     let totalScore = 0;
     let subjectsSum = 0;
     let achievementScore = 0;
     let hasConsent = false;
+    let hasRefusal = false;
     let subjects: SubjectScore[] = [];
     let p3Score = 0;
+    let priorityRank = 999; // default: unknown priority
 
-    if (headerIdx !== -1 || cols.length >= 13) {
+    if (headerIdx !== -1 || looksLikeModernFormat(cols)) {
       // 1C / Standard Admissions layout
       fullName = String(cols[1] || '').trim();
       if (!fullName || fullName === 'ФИО') return;
@@ -106,10 +143,28 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
       ];
 
       achievementScore = parseNumber(cols[11]);
-      if (subjectsSum === 0) subjectsSum = p1Score + p2Score + p3Score;
-      if (totalScore === 0) totalScore = subjectsSum + achievementScore;
+      // Always recalculate subjectsSum from individual scores to guarantee consistency
+      subjectsSum = p1Score + p2Score + p3Score;
+      // Recalculate totalScore if it's missing, or if it doesn't match subjectsSum+achievements
+      const expectedTotal = subjectsSum + achievementScore;
+      if (totalScore === 0 || Math.abs(totalScore - expectedTotal) > 0.01) {
+        totalScore = expectedTotal;
+      }
 
-      hasConsent = parseBool(cols[12]);
+      const consent = parseConsent(cols[12]);
+      hasConsent = consent.hasConsent;
+      hasRefusal = consent.hasRefusal;
+      // col[13] = applicant's self-declared priority for this program (1 = highest)
+      priorityRank = parseNumber(cols[13]) || 999;
+      // col[14]/col[15] optional extra info like phone / email / ID
+      const extraContact = String(cols[14] || cols[15] || '').trim();
+      if (extraContact) {
+        if (extraContact.includes('@')) {
+          email = extraContact;
+        } else if (/[\d+\-() ]{7,}/.test(extraContact)) {
+          phone = extraContact;
+        }
+      }
     } else {
       // Legacy 4-column CSV
       fullName = String(cols[0] || '').trim();
@@ -121,29 +176,50 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
       subjects = [{ name: 'Русский язык', score: p3Score }];
     }
 
-    const existing = applicantMap.get(fullName);
+    const applicantId = phone || email ? `${fullName}_${phone || email}` : fullName.toLowerCase().replace(/\s+/g, '_');
+    const existing = applicantMap.get(fullName) || applicantMap.get(applicantId);
+    const thisProgramScore = { totalScore, subjectsSum, achievementScore, subjects, priorityRank };
+
     if (existing) {
       if (!existing.priorities.includes(programId)) {
         existing.priorities.push(programId);
       }
       if (hasConsent) existing.hasConsent = true;
+      if (hasRefusal) existing.hasRefusal = true;
       if (hasPreference) existing.hasPreference = true;
-      existing.totalScore = Math.max(existing.totalScore, totalScore);
-      existing.subjectsSum = Math.max(existing.subjectsSum, subjectsSum);
+      if (phone) existing.phone = phone;
+      if (email) existing.email = email;
+      // Save per-program scores (always, even if duplicate row in same file)
+      const existingProgramScore = existing.programScores[programId];
+      if (!existingProgramScore || subjectsSum > existingProgramScore.subjectsSum) {
+        existing.programScores[programId] = thisProgramScore;
+      }
+      // Global fallback scores: keep highest
+      if (subjectsSum > existing.subjectsSum) {
+        existing.subjects = subjects;
+        existing.russianScore = p3Score;
+        existing.subjectsSum = subjectsSum;
+      }
       existing.achievementScore = Math.max(existing.achievementScore, achievementScore);
+      existing.totalScore = existing.subjectsSum + existing.achievementScore;
     } else {
       applicantMap.set(fullName, {
+        id: applicantId,
         fullName,
+        phone,
+        email,
         subjects,
         subjectsSum,
         achievementScore,
         totalScore,
         hasConsent,
+        hasRefusal,
         hasPreference,
         russianScore: p3Score,
         priorities: [programId],
         program: fileName,
         status: 'pending',
+        programScores: { [programId]: thisProgramScore },
       });
     }
   });
@@ -161,7 +237,11 @@ export function exportToCSV(applicants: Applicant[], filename: string): void {
   
   const content = applicants
     .map((applicant, index) => {
-      const status = applicant.status === 'admitted' ? 'Зачислен' : 'Не зачислен';
+      const status = applicant.status === 'admitted'
+        ? 'Зачислен'
+        : applicant.status === 'admitted_elsewhere'
+        ? 'На другом направлении'
+        : 'Не зачислен';
       const pref = applicant.hasPreference ? '✓' : '';
       const consent = applicant.hasConsent ? '✓' : '';
       

@@ -49,6 +49,19 @@ export const useAdmissionsStore = create<AdmissionsState>()(
     {
       name: 'admissions-storage',
       storage: createJSONStorage(() => localStorage),
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2) {
+          // Migrate: add empty programScores to old cached applicants
+          if (Array.isArray(persistedState?.applicants)) {
+            persistedState.applicants = persistedState.applicants.map((a: any) => ({
+              ...a,
+              programScores: a.programScores ?? {},
+            }));
+          }
+        }
+        return persistedState;
+      },
     }
   )
 );

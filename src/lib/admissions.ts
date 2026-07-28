@@ -32,12 +32,7 @@ export function compareApplicants(a: Applicant, b: Applicant): number {
     return bSub3 - aSub3;
   }
 
-  // 6. Consent to enroll («Согласие на зачисление»)
-  if (Boolean(a.hasConsent) !== Boolean(b.hasConsent)) {
-    return a.hasConsent ? -1 : 1;
-  }
-
-  // 7. Full Name alphabetical tie breaker (A-Z)
+  // 6. Full Name alphabetical tie breaker (A-Z)
   return a.fullName.localeCompare(b.fullName);
 }
 
@@ -45,28 +40,71 @@ export function generateCompetitionLists(
   applicants: Applicant[],
   programs: Program[]
 ): Record<string, Applicant[]> {
-  // 1. Determine which program each applicant is admitted to based on priority and rank
+  // 1. Determine which program each applicant is admitted to using iterative stable matching
+  const activeApplicants = applicants.filter((a) => !a.hasRefusal);
   const admittedProgramMap = new Map<string, string>(); // fullName -> admitted programId
-  const programAdmittedCounts: Record<string, number> = {};
-  
-  programs.forEach((program) => {
-    programAdmittedCounts[program.id] = 0;
-  });
 
-  const sortedApplicants = [...applicants].sort(compareApplicants);
+  let changed = true;
+  let maxPasses = programs.length * 3;
 
-  sortedApplicants.forEach((applicant) => {
-    for (const programId of applicant.priorities) {
-      const program = programs.find((p) => p.id === programId);
-      if (!program) continue;
+  while (changed && maxPasses > 0) {
+    changed = false;
+    maxPasses--;
 
-      if ((programAdmittedCounts[programId] || 0) < program.places) {
-        admittedProgramMap.set(applicant.fullName, programId);
-        programAdmittedCounts[programId] = (programAdmittedCounts[programId] || 0) + 1;
-        break; // Admitted to highest possible priority
-      }
-    }
-  });
+    programs.forEach((program) => {
+      // Find active applicants who applied to this program
+      // and for whom this program is better than or equal to their currently assigned program
+      const candidates = activeApplicants
+        .filter((a) => a.priorities.includes(program.id))
+        .filter((a) => {
+          const currentAdmitted = admittedProgramMap.get(a.fullName);
+          if (!currentAdmitted || currentAdmitted === program.id) return true;
+
+          // Check if this program has a better (lower number) priority rank than currently admitted program
+          const currentRank = a.programScores?.[currentAdmitted]?.priorityRank ?? 999;
+          const thisRank = a.programScores?.[program.id]?.priorityRank ?? 999;
+          return thisRank < currentRank;
+        })
+        .map((a) => {
+          const ps = a.programScores?.[program.id];
+          return {
+            applicant: a,
+            totalScore: ps?.totalScore ?? a.totalScore,
+            subjectsSum: ps?.subjectsSum ?? a.subjectsSum,
+            subjects: ps?.subjects ?? a.subjects,
+            priorityRank: ps?.priorityRank ?? 999,
+          };
+        })
+        .sort((a, b) => {
+          if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+          if (b.subjectsSum !== a.subjectsSum) return b.subjectsSum - a.subjectsSum;
+          const bS1 = b.subjects[0]?.score ?? 0;
+          const aS1 = a.subjects[0]?.score ?? 0;
+          if (bS1 !== aS1) return bS1 - aS1;
+          return a.applicant.fullName.localeCompare(b.applicant.fullName);
+        });
+
+      const topCandidates = candidates.slice(0, program.places);
+      const topNames = new Set(topCandidates.map((c) => c.applicant.fullName));
+
+      // Remove previous admitted candidates to this program who were displaced
+      Array.from(admittedProgramMap.entries()).forEach(([fullName, pid]) => {
+        if (pid === program.id && !topNames.has(fullName)) {
+          admittedProgramMap.delete(fullName);
+          changed = true;
+        }
+      });
+
+      // Admit top candidates
+      topCandidates.forEach((c) => {
+        const prevAssigned = admittedProgramMap.get(c.applicant.fullName);
+        if (prevAssigned !== program.id) {
+          admittedProgramMap.set(c.applicant.fullName, program.id);
+          changed = true;
+        }
+      });
+    });
+  }
 
   // 2. Build complete competition list for EACH program (all applicants who applied to that program)
   const competitionLists: Record<string, Applicant[]> = {};
@@ -74,16 +112,34 @@ export function generateCompetitionLists(
   programs.forEach((program) => {
     const applicantsForProgram = applicants
       .filter((applicant) => applicant.priorities.includes(program.id))
-      .map((applicant) => ({
-        ...applicant,
-        status: (admittedProgramMap.get(applicant.fullName) === program.id ? 'admitted' : 'rejected') as 'admitted' | 'rejected',
-      }))
-      .sort((a, b) => {
-        if (a.status === b.status) {
-          return compareApplicants(a, b);
+      .map((applicant) => {
+        // Use program-specific scores if available (from the file for this program)
+        const ps = applicant.programScores?.[program.id];
+        const admittedTo = admittedProgramMap.get(applicant.fullName);
+        let status: 'admitted' | 'admitted_elsewhere' | 'rejected';
+        if (applicant.hasRefusal) {
+          // Applicant has filed a formal refusal — always rejected regardless of score
+          status = 'rejected';
+        } else if (admittedTo === program.id) {
+          status = 'admitted';
+        } else if (admittedTo !== undefined) {
+          status = 'admitted_elsewhere';
+        } else {
+          status = 'rejected';
         }
-        return a.status === 'admitted' ? -1 : 1;
-      });
+        return {
+          ...applicant,
+          ...(ps ? {
+            totalScore: ps.totalScore,
+            subjectsSum: ps.subjectsSum,
+            achievementScore: ps.achievementScore,
+            subjects: ps.subjects,
+          } : {}),
+          status,
+          admittedToProgramId: status === 'admitted_elsewhere' ? admittedTo : undefined,
+        };
+      })
+      .sort((a, b) => compareApplicants(a, b));
 
     competitionLists[program.id] = applicantsForProgram;
   });

@@ -31,8 +31,14 @@ export default function ImportDialog({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFiles(Array.from(e.target.files));
+      const selected = Array.from(e.target.files);
+      setFiles((prev) => {
+        const prevNames = new Set(prev.map((f) => f.name));
+        const newUnique = selected.filter((f) => !prevNames.has(f.name));
+        return [...prev, ...newUnique];
+      });
       setError(null);
+      e.target.value = '';
     }
   };
 
@@ -56,15 +62,30 @@ export default function ImportDialog({
           const existing = applicantMap.get(app.fullName);
           if (existing) {
             const combinedPriorities = Array.from(new Set([...existing.priorities, ...app.priorities]));
+            const betterSubjects = app.subjectsSum > existing.subjectsSum ? app : existing;
+            const mergedSubjectsSum = Math.max(existing.subjectsSum, app.subjectsSum);
+            const mergedAchievementScore = Math.max(existing.achievementScore, app.achievementScore);
+
+            const mergedProgramScores = { ...existing.programScores };
+            for (const [pid, ps] of Object.entries(app.programScores)) {
+              const existingPs = mergedProgramScores[pid];
+              if (!existingPs || ps.subjectsSum > existingPs.subjectsSum) {
+                mergedProgramScores[pid] = ps;
+              }
+            }
+
             applicantMap.set(app.fullName, {
               ...existing,
-              totalScore: Math.max(existing.totalScore, app.totalScore),
-              subjectsSum: Math.max(existing.subjectsSum, app.subjectsSum),
-              achievementScore: Math.max(existing.achievementScore, app.achievementScore),
+              totalScore: mergedSubjectsSum + mergedAchievementScore,
+              subjectsSum: mergedSubjectsSum,
+              achievementScore: mergedAchievementScore,
               hasConsent: existing.hasConsent || app.hasConsent,
+              hasRefusal: existing.hasRefusal || app.hasRefusal,
               hasPreference: existing.hasPreference || app.hasPreference,
-              subjects: existing.subjects.length > 0 ? existing.subjects : app.subjects,
+              subjects: betterSubjects.subjects.length > 0 ? betterSubjects.subjects : (existing.subjects.length > 0 ? existing.subjects : app.subjects),
+              russianScore: betterSubjects.russianScore,
               priorities: combinedPriorities,
+              programScores: mergedProgramScores,
             });
           } else {
             applicantMap.set(app.fullName, app);
@@ -72,7 +93,17 @@ export default function ImportDialog({
         }
       }
 
-      const mergedApplicants = Array.from(applicantMap.values());
+      // Sort each applicant's priorities by the priorityRank stored in programScores
+      // (parsed from the "Приоритет" column in the source file)
+      const mergedApplicants = Array.from(applicantMap.values()).map((applicant) => {
+        const sortedPriorities = [...applicant.priorities].sort((pidA, pidB) => {
+          const rankA = applicant.programScores[pidA]?.priorityRank ?? 999;
+          const rankB = applicant.programScores[pidB]?.priorityRank ?? 999;
+          return rankA - rankB;
+        });
+        return { ...applicant, priorities: sortedPriorities };
+      });
+
       onImport(mergedApplicants);
       onOpenChange(false);
       setFiles([]);
@@ -89,7 +120,7 @@ export default function ImportDialog({
         <DialogHeader>
           <DialogTitle className='text-2xl'>Импорт списков поступающих</DialogTitle>
           <DialogDescription>
-            Вы можете выбрать напрямую файлы **.XLS**, **.XLSX** или **.CSV**. Принимаются выгрузки 1С / приемной комиссии. Название файла автоматически привязывается к направлению.
+            Вы можете выбрать напрямую файлы **.XLS**, **.XLSX** или **.CSV**. Принимаются выгрузки 1С / приемной комиссии. Название файла автоматически привязывается к направлению. Приоритеты берутся из столбца «Приоритет» в каждом файле.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -137,7 +168,7 @@ export default function ImportDialog({
 
           <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800 space-y-1">
             <div className="font-semibold text-blue-900 dark:text-blue-300">💡 Прямой импорт XLS / XLSX</div>
-            <div>Теперь не нужно конвертировать в CSV! Загружайте файлы выгрузки **.XLS** напрямую из 1С / ПК.</div>
+            <div>Загружайте файлы выгрузки **.XLS** напрямую из 1С / ПК. Столбец «Приоритет» из каждого файла используется автоматически для определения порядка поступления.</div>
           </div>
 
           {error && (

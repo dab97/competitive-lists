@@ -9,12 +9,13 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Download, Search, CheckCircle2, XCircle, Printer } from 'lucide-react';
+import { Download, Search, CheckCircle2, XCircle, Printer, Ban } from 'lucide-react';
 import { Applicant, Program } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { exportToCSV } from '@/lib/csv-parser';
 import StudentCard from '@/components/StudentCard';
 import { formatScore } from '@/lib/utils';
+import { useAdmissionsStore } from '@/stores/admissions';
 
 interface CompetitionListProps {
   applicants: Applicant[];
@@ -24,7 +25,8 @@ interface CompetitionListProps {
 export default function CompetitionList({ applicants, program }: CompetitionListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Applicant | null>(null);
-  
+  const { programs: allPrograms } = useAdmissionsStore();
+
   const filteredApplicants = applicants.filter(
     (applicant) =>
       applicant.fullName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -46,9 +48,9 @@ export default function CompetitionList({ applicants, program }: CompetitionList
 
   if (selectedStudent) {
     return (
-      <StudentCard 
-        student={selectedStudent} 
-        onBack={() => setSelectedStudent(null)} 
+      <StudentCard
+        student={selectedStudent}
+        onBack={() => setSelectedStudent(null)}
       />
     );
   }
@@ -203,7 +205,12 @@ export default function CompetitionList({ applicants, program }: CompetitionList
                       {formatScore(applicant.totalScore)}
                     </TableCell>
                     <TableCell className="text-center">
-                      {applicant.hasConsent ? (
+                      {applicant.hasRefusal ? (
+                        <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-semibold" title="Отказ от зачисления">
+                          <Ban className="w-4 h-4" />
+                          Отказ
+                        </span>
+                      ) : applicant.hasConsent ? (
                         <span className="inline-flex items-center text-green-600 dark:text-green-400 font-bold" title="Согласие подано">
                           <CheckCircle2 className="w-5 h-5" />
                         </span>
@@ -219,16 +226,23 @@ export default function CompetitionList({ applicants, program }: CompetitionList
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right pr-4">
-                      <Badge 
-                        variant={applicant.status === 'admitted' ? 'default' : 'secondary'}
-                        className={
-                          applicant.status === 'admitted' 
-                            ? 'font-normal bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800 dark:bg-green-900 dark:text-green-400'
-                            : 'font-normal bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-800 dark:bg-red-900 dark:text-red-400'
-                        }
-                      >
-                        {applicant.status === 'admitted' ? 'Зачислен' : 'Не зачислен'}
-                      </Badge>
+                      {applicant.status === 'admitted' ? (
+                        <Badge className="font-normal bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900 dark:text-green-400">
+                          Зачислен
+                        </Badge>
+                      ) : applicant.status === 'admitted_elsewhere' ? (() => {
+                        const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
+                        const label = admProg ? `${admProg.name} (${admProg.form})` : 'Другое направление';
+                        return (
+                          <Badge className="font-normal bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-400 max-w-[160px] truncate">
+                            {label}
+                          </Badge>
+                        );
+                      })() : (
+                        <Badge className="font-normal bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900 dark:text-red-400">
+                          Не зачислен
+                        </Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
