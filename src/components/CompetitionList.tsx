@@ -205,44 +205,66 @@ export default function CompetitionList({ applicants, program }: CompetitionList
                       {formatScore(applicant.totalScore)}
                     </TableCell>
                     <TableCell className="text-center">
-                      {applicant.hasRefusal ? (
-                        <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-semibold" title="Отказ от зачисления">
-                          <Ban className="w-4 h-4" />
-                          Отказ
-                        </span>
-                      ) : applicant.hasConsent ? (
-                        <span className="inline-flex items-center text-green-600 dark:text-green-400 font-bold" title="Согласие подано">
-                          <CheckCircle2 className="w-5 h-5" />
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center text-slate-300 dark:text-slate-600" title="Согласие отсутствует">
-                          <XCircle className="w-4 h-4" />
-                        </span>
-                      )}
+                      <div className="print:hidden">
+                        {applicant.hasRefusal ? (
+                          <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-semibold" title="Отказ от зачисления">
+                            <Ban className="w-4 h-4" />
+                            Отказ
+                          </span>
+                        ) : applicant.hasConsent ? (
+                          <span className="inline-flex items-center text-green-600 dark:text-green-400 font-bold" title="Согласие подано">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center text-slate-300 dark:text-slate-600" title="Согласие отсутствует">
+                            <XCircle className="w-4 h-4" />
+                          </span>
+                        )}
+                      </div>
+                      <span className="hidden print:inline font-bold text-xs text-black">
+                        {applicant.hasRefusal ? "Отказ" : applicant.hasConsent ? "Да" : "Нет"}
+                      </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="rounded-full px-2 py-0.5">
+                      <span className="print:hidden">
+                        <Badge variant="outline" className="rounded-full px-2 py-0.5">
+                          {priorityIndex > 0 ? priorityIndex : 1}
+                        </Badge>
+                      </span>
+                      <span className="hidden print:inline font-semibold text-xs text-black">
                         {priorityIndex > 0 ? priorityIndex : 1}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell className="text-right pr-4">
-                      {applicant.status === 'admitted' ? (
-                        <Badge className="font-normal bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900 dark:text-green-400">
-                          Зачислен
-                        </Badge>
-                      ) : applicant.status === 'admitted_elsewhere' ? (() => {
-                        const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
-                        const label = admProg ? `${admProg.name} (${admProg.form})` : 'Другое направление';
-                        return (
-                          <Badge className="font-normal bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-400 max-w-[160px] truncate">
-                            {label}
+                      <div className="print:hidden">
+                        {applicant.status === 'admitted' ? (
+                          <Badge className="font-normal bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900 dark:text-green-400">
+                            Зачислен
                           </Badge>
-                        );
-                      })() : (
-                        <Badge className="font-normal bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900 dark:text-red-400">
-                          Не зачислен
-                        </Badge>
-                      )}
+                        ) : applicant.status === 'admitted_elsewhere' ? (() => {
+                          const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
+                          const label = admProg ? `${admProg.name} (${admProg.form})` : 'Другое направление';
+                          return (
+                            <Badge className="font-normal bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-400 max-w-[160px] truncate">
+                              {label}
+                            </Badge>
+                          );
+                        })() : (
+                          <Badge className="font-normal bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900 dark:text-red-400">
+                            Не зачислен
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="hidden print:inline font-bold text-xs text-black">
+                        {applicant.status === 'admitted'
+                          ? "Зачислен"
+                          : applicant.status === 'admitted_elsewhere'
+                          ? (() => {
+                              const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
+                              return admProg ? `Зачислен (${admProg.name})` : "Зачислен (другое)";
+                            })()
+                          : "Не зачислен"}
+                      </span>
                     </TableCell>
                   </TableRow>
                 );

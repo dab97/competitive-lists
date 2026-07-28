@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Eye, Search, CheckCircle2, XCircle } from 'lucide-react';
+import { Eye, Search, CheckCircle2, XCircle, Ban } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -26,8 +26,18 @@ const ApplicantsList: React.FC = () => {
     student.fullName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Сортировка по общим баллам, предметам, согласию и алфавиту
-  const sortedStudents = [...filteredStudents].sort(compareApplicants);
+  // Сортировка по баллам 1-го приоритета, предметам и алфавиту
+  const getFirstPriorityScore = (a: Applicant): number => {
+    const p1 = a.priorities[0];
+    const score = p1 ? a.programScores?.[p1]?.totalScore : undefined;
+    return typeof score === 'number' ? score : (a.totalScore ?? 0);
+  };
+
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    const scoreDiff = getFirstPriorityScore(b) - getFirstPriorityScore(a);
+    if (scoreDiff !== 0) return scoreDiff;
+    return compareApplicants(a, b);
+  });
 
   // Функция для определения статуса зачисления студента
   const getAdmissionStatus = (student: Applicant) => {
@@ -102,19 +112,50 @@ const ApplicantsList: React.FC = () => {
             <TableBody>
               {sortedStudents.map((student, index) => {
                 const admissionStatus = getAdmissionStatus(student);
+
+                // Вычисление балла по 1-му приоритету
+                const firstPriorityProgramId = student.priorities[0];
+                const firstPriorityScoreObj = firstPriorityProgramId ? student.programScores?.[firstPriorityProgramId] : null;
+                const displayTotalScore = firstPriorityScoreObj?.totalScore ?? student.totalScore;
+                const displaySubjectsSum = firstPriorityScoreObj?.subjectsSum ?? student.subjectsSum;
+
+                // Проверка на наличие более высокого балла на других направлениях
+                const allScores = Object.values(student.programScores ?? {}).map(ps => ps.totalScore);
+                const maxScore = allScores.length > 0 ? Math.max(...allScores) : student.totalScore;
+                const hasHigherScoreElsewhere = maxScore > displayTotalScore;
+
                 return (
                   <TableRow key={student.fullName}>
                     <TableCell>{index + 1}</TableCell>
                     <TableCell className="font-medium">{student.fullName}</TableCell>
-                    <TableCell className="text-center">{formatScore(student.subjectsSum)}</TableCell>
+                    <TableCell className="text-center">{formatScore(displaySubjectsSum)}</TableCell>
                     <TableCell className="text-center text-amber-600 dark:text-amber-400 font-semibold">
                       +{formatScore(student.achievementScore)}
                     </TableCell>
                     <TableCell className="text-center font-black text-primary text-base">
-                      {formatScore(student.totalScore)}
+                      {hasHigherScoreElsewhere ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="cursor-help underline decoration-dotted underline-offset-4 decoration-primary/50">
+                              {formatScore(displayTotalScore)}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">Балл по 1-му приоритету: <strong>{formatScore(displayTotalScore)}</strong></p>
+                              <p className="text-xs text-muted-foreground">Макс. балл на др. направлениях: {formatScore(maxScore)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        formatScore(displayTotalScore)
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
-                      {student.hasConsent ? (
+                      {student.hasRefusal || student.status === 'rejected' ? (
+                        <span className="inline-flex items-center justify-center gap-1 text-red-600 dark:text-red-400 text-xs font-semibold" title="Отказ от зачисления">
+                          <Ban className="w-4 h-4" />
+                          <span className="hidden sm:inline">Отказ</span>
+                        </span>
+                      ) : student.hasConsent ? (
                         <CheckCircle2 className="w-5 h-5 mx-auto text-green-600 dark:text-green-400" />
                       ) : (
                         <XCircle className="w-4 h-4 mx-auto text-slate-300 dark:text-slate-600" />
@@ -146,6 +187,10 @@ const ApplicantsList: React.FC = () => {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
+                      ) : student.hasRefusal || student.status === 'rejected' ? (
+                        <Badge variant="secondary" className="bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-semibold">
+                          Отказ
+                        </Badge>
                       ) : (
                         <Badge variant="secondary" className="bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900 dark:bg-red-900 dark:text-red-400">
                           Не зачислен
