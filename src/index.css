@@ -1,0 +1,208 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Golos';
+  src: url('./fonts/GolosText-VF.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Bebas';
+  src: url('./fonts/BebasNeue-Bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    
+    --primary: 223 71% 35%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 225 85% 21%;
+    --secondary-foreground: 0 0% 100%;
+    
+    --accent: 217 100% 50%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 74% 38%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 217 100% 50%;
+    
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    
+    --primary: 223 71% 35%;
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 225 85% 21%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --accent: 217 100% 50%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 74% 38%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    
+    --muted: 217 32% 17%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 217 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-golos;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bebas;
+  }
+}
+
+.hero-pattern {
+  background: hsl(var(--primary));
+  position: relative;
+}
+
+.gradient-border {
+  position: relative;
+  border-radius: var(--radius);
+  background: hsl(var(--primary));
+  padding: 1px;
+}
+
+.gradient-border > div {
+  background: hsl(var(--background));
+  border-radius: calc(var(--radius) - 1px);
+}
+
+.card-hover {
+  transition: all 0.2s ease-in-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-1px);
+}
+
+.pulse-animation {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .8;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Print CSS Styles */
+.print-only {
+  display: none !important;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body, html, main, #root {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  header, nav, aside, .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .overflow-x-auto, .overflow-y-auto, .overflow-auto {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8pt !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  th, td {
+    border: 1px solid #444444 !important;
+    padding: 3px 4px !important;
+    color: #000000 !important;
+  }
+
+  th {
+    background-color: #f3f4f6 !important;
+    font-weight: bold !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+}
