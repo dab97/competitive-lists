@@ -141,12 +141,12 @@ export default function CompetitionList({ applicants, program }: CompetitionList
             <TableRow className="bg-slate-50 dark:bg-slate-900/50">
               <TableHead className="w-12 text-center">№</TableHead>
               <TableHead className="min-w-[180px]">ФИО</TableHead>
+              <TableHead className="text-center font-bold text-primary">Общий балл</TableHead>
+              <TableHead className="text-center">Инд. дост.</TableHead>
+              <TableHead className="text-center">Сумма ВИ</TableHead>
               <TableHead className="text-center">Предмет 1</TableHead>
               <TableHead className="text-center">Предмет 2</TableHead>
               <TableHead className="text-center">Предмет 3</TableHead>
-              <TableHead className="text-center">Сумма ВИ</TableHead>
-              <TableHead className="text-center">Инд. дост.</TableHead>
-              <TableHead className="text-center font-bold text-primary">Общий балл</TableHead>
               <TableHead className="text-center">Согласие</TableHead>
               <TableHead className="text-center">Приоритет</TableHead>
               <TableHead className="text-right pr-4">Статус</TableHead>
@@ -171,6 +171,15 @@ export default function CompetitionList({ applicants, program }: CompetitionList
                         {applicant.fullName}
                       </button>
                     </TableCell>
+                    <TableCell className="text-center font-black text-lg text-primary">
+                      {formatScore(applicant.totalScore)}
+                    </TableCell>
+                    <TableCell className="text-center font-medium text-amber-600 dark:text-amber-400">
+                      +{formatScore(applicant.achievementScore)}
+                    </TableCell>
+                    <TableCell className="text-center font-medium text-slate-700 dark:text-slate-300">
+                      {formatScore(applicant.subjectsSum)}
+                    </TableCell>
                     <TableCell className="text-center text-xs">
                       {s1 ? (
                         <div>
@@ -194,15 +203,6 @@ export default function CompetitionList({ applicants, program }: CompetitionList
                           <div className="font-semibold">{formatScore(s3.score)}</div>
                         </div>
                       ) : '—'}
-                    </TableCell>
-                    <TableCell className="text-center font-medium text-slate-700 dark:text-slate-300">
-                      {formatScore(applicant.subjectsSum)}
-                    </TableCell>
-                    <TableCell className="text-center font-medium text-amber-600 dark:text-amber-400">
-                      +{formatScore(applicant.achievementScore)}
-                    </TableCell>
-                    <TableCell className="text-center font-black text-lg text-primary">
-                      {formatScore(applicant.totalScore)}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="print:hidden">
