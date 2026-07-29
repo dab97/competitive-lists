@@ -112,6 +112,11 @@ export default function StudentCard({ student, onBack }: StudentCardProps) {
                 <CardTitle className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                   {student.fullName}
                 </CardTitle>
+                {student.uniqueCode && (
+                  <p className="text-xs text-muted-foreground font-mono">
+                    Код: <span className="font-semibold text-foreground/70">{student.uniqueCode}</span>
+                  </p>
+                )}
 
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Scores Badge */}

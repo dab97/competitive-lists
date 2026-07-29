@@ -2,6 +2,20 @@ import * as XLSX from 'xlsx';
 import { Applicant, SubjectScore } from '@/types';
 import { programs } from '@/data/programs';
 
+/**
+ * Normalises a full name for fuzzy matching:
+ * – strips leading/trailing whitespace
+ * – collapses multiple spaces (including non-breaking \u00A0) into one
+ * – lowercases
+ */
+export function normalizeName(name: string): string {
+  return name
+    .replace(/\u00A0/g, ' ')  // non-breaking space → regular space
+    .replace(/\s+/g, ' ')      // collapse multiple spaces
+    .trim()
+    .toLowerCase();
+}
+
 function parseNumber(val: any): number {
   if (val === null || val === undefined) return 0;
   const cleaned = String(val).replace(',', '.').trim();
@@ -77,6 +91,16 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
     (r) => Array.isArray(r) && r.some((c) => String(c).includes('ФИО'))
   );
 
+  // Detect optional column for unique code: «Уникальный код», «ИД», «Код»
+  let uniqueCodeColIdx = -1;
+  if (headerIdx !== -1) {
+    const headerRow = rows[headerIdx];
+    uniqueCodeColIdx = headerRow.findIndex((c: any) => {
+      const s = String(c).trim().toLowerCase();
+      return s.includes('уникальн') || s === 'код' || s === 'ид' || s === 'id';
+    });
+  }
+
   const dataRows = headerIdx !== -1
     ? rows.slice(headerIdx + 1).filter((r) => Array.isArray(r) && r.length > 1 && r[1])
     : rows.filter((r) => Array.isArray(r) && r.length >= 4);
@@ -108,6 +132,7 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
 
   dataRows.forEach((cols) => {
     let fullName = '';
+    let uniqueCode = '';
     let phone = '';
     let email = '';
     let hasPreference = false;
@@ -156,6 +181,10 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
       hasRefusal = consent.hasRefusal;
       // col[13] = applicant's self-declared priority for this program (1 = highest)
       priorityRank = parseNumber(cols[13]) || 999;
+      // Unique code from the detected header column (if present)
+      if (uniqueCodeColIdx !== -1) {
+        uniqueCode = String(cols[uniqueCodeColIdx] ?? '').trim();
+      }
       // col[14]/col[15] optional extra info like phone / email / ID
       const extraContact = String(cols[14] || cols[15] || '').trim();
       if (extraContact) {
@@ -189,6 +218,7 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
       if (hasPreference) existing.hasPreference = true;
       if (phone) existing.phone = phone;
       if (email) existing.email = email;
+      if (uniqueCode && !existing.uniqueCode) existing.uniqueCode = uniqueCode;
       // Save per-program scores (always, even if duplicate row in same file)
       const existingProgramScore = existing.programScores[programId];
       if (!existingProgramScore || subjectsSum > existingProgramScore.subjectsSum) {
@@ -206,6 +236,7 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
       applicantMap.set(fullName, {
         id: applicantId,
         fullName,
+        uniqueCode: uniqueCode || undefined,
         phone,
         email,
         subjects,
@@ -229,6 +260,67 @@ export function parseExcelOrCSV(data: ArrayBuffer | string, fileName: string): A
 
 export function parseCSV(csvData: string, defaultProgramStr?: string): Applicant[] {
   return parseExcelOrCSV(csvData, defaultProgramStr || 'file.csv');
+}
+
+/**
+ * Parses a refusals file (XLSX / CSV).
+ * Returns { names: Set<normalized ФИО>, codes: Set<unique codes> }
+ * Caller should match by code first (exact), then fall back to name.
+ */
+export function parseRefusalsFile(
+  data: ArrayBuffer | string,
+  fileName: string
+): { names: Set<string>; codes: Set<string> } {
+  let rows: any[][] = [];
+
+  if (typeof data === 'string' && !fileName.toLowerCase().endsWith('.xls') && !fileName.toLowerCase().endsWith('.xlsx')) {
+    const cleanData = data.replace(/^\uFEFF/, '');
+    const lines = cleanData.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    rows = lines.map((line) => {
+      const delimiter = line.includes(';') ? ';' : '\t';
+      return line.split(delimiter).map((c) => c.trim());
+    });
+  } else {
+    const workbook = XLSX.read(data, { type: typeof data === 'string' ? 'string' : 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+  }
+
+  if (!rows || rows.length === 0) return { names: new Set(), codes: new Set() };
+
+  const headerIdx = rows.findIndex(
+    (r) => Array.isArray(r) && r.some((c) => String(c).toUpperCase().includes('ФИО'))
+  );
+
+  let nameColIdx = 0;
+  let codeColIdx = -1;
+  if (headerIdx !== -1) {
+    const headerRow = rows[headerIdx];
+    const foundName = headerRow.findIndex((c: any) => String(c).toUpperCase().includes('ФИО'));
+    if (foundName !== -1) nameColIdx = foundName;
+    const foundCode = headerRow.findIndex((c: any) => {
+      const s = String(c).trim().toLowerCase();
+      return s.includes('уникальн') || s === 'код' || s === 'ид' || s === 'id';
+    });
+    if (foundCode !== -1) codeColIdx = foundCode;
+  }
+
+  const dataRows = headerIdx !== -1 ? rows.slice(headerIdx + 1) : rows;
+
+  const names = new Set<string>();
+  const codes = new Set<string>();
+  for (const row of dataRows) {
+    if (!Array.isArray(row)) continue;
+    const rawName = String(row[nameColIdx] ?? '').trim();
+    if (rawName && rawName.length > 2) {
+      names.add(normalizeName(rawName));
+    }
+    if (codeColIdx !== -1) {
+      const rawCode = String(row[codeColIdx] ?? '').trim();
+      if (rawCode) codes.add(rawCode);
+    }
+  }
+  return { names, codes };
 }
 
 export function exportToCSV(applicants: Applicant[], filename: string): void {

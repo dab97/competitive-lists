@@ -27,12 +27,19 @@ export default function Dashboard() {
 
   const { applicants, competitionLists, programs, setApplicants, clearApplicants } = useAdmissionsStore();
 
-  const handleImport = (importedApplicants: Applicant[]) => {
+  const handleImport = (importedApplicants: Applicant[], stats?: { matchedRefusals: number; totalRefusals: number }) => {
     setApplicants(importedApplicants);
+
+    const refusalLine = stats
+      ? `Отказов совпало: ${stats.matchedRefusals} из ${stats.totalRefusals}`
+      : undefined;
 
     toast({
       title: 'Импорт успешно завершен',
-      description: `Импортировано ${importedApplicants.length} поступающих`,
+      description: [
+        `Импортировано ${importedApplicants.length} поступающих`,
+        refusalLine,
+      ].filter(Boolean).join(' · '),
     });
   };
 

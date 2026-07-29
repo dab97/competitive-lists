@@ -15,6 +15,7 @@ export interface ProgramScore {
 export interface Applicant {
   id?: string;
   fullName: string;
+  uniqueCode?: string;
   phone?: string;
   email?: string;
   subjects: SubjectScore[];
