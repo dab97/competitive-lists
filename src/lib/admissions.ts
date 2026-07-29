@@ -6,33 +6,28 @@ export function compareApplicants(a: Applicant, b: Applicant): number {
     return b.totalScore - a.totalScore;
   }
 
-  // 2. Exam subjects sum (without individual achievements)
-  if (b.subjectsSum !== a.subjectsSum) {
-    return b.subjectsSum - a.subjectsSum;
-  }
-
-  // 3. Priority Subject 1 score (e.g., Biology)
+  // 2. Priority Subject 1 score
   const aSub1 = a.subjects[0]?.score ?? 0;
   const bSub1 = b.subjects[0]?.score ?? 0;
   if (bSub1 !== aSub1) {
     return bSub1 - aSub1;
   }
 
-  // 4. Priority Subject 2 score (e.g., Social Studies / Math)
+  // 3. Priority Subject 2 score
   const aSub2 = a.subjects[1]?.score ?? 0;
   const bSub2 = b.subjects[1]?.score ?? 0;
   if (bSub2 !== aSub2) {
     return bSub2 - aSub2;
   }
 
-  // 5. Priority Subject 3 score (e.g., Russian Language)
+  // 4. Priority Subject 3 score
   const aSub3 = a.subjects[2]?.score ?? 0;
   const bSub3 = b.subjects[2]?.score ?? 0;
   if (bSub3 !== aSub3) {
     return bSub3 - aSub3;
   }
 
-  // 6. Full Name alphabetical tie breaker (A-Z)
+  // 5. Full Name alphabetical tie breaker (A-Z)
   return a.fullName.localeCompare(b.fullName);
 }
 
@@ -77,10 +72,15 @@ export function generateCompetitionLists(
         })
         .sort((a, b) => {
           if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-          if (b.subjectsSum !== a.subjectsSum) return b.subjectsSum - a.subjectsSum;
           const bS1 = b.subjects[0]?.score ?? 0;
           const aS1 = a.subjects[0]?.score ?? 0;
           if (bS1 !== aS1) return bS1 - aS1;
+          const bS2 = b.subjects[1]?.score ?? 0;
+          const aS2 = a.subjects[1]?.score ?? 0;
+          if (bS2 !== aS2) return bS2 - aS2;
+          const bS3 = b.subjects[2]?.score ?? 0;
+          const aS3 = a.subjects[2]?.score ?? 0;
+          if (bS3 !== aS3) return bS3 - aS3;
           return a.applicant.fullName.localeCompare(b.applicant.fullName);
         });
 
