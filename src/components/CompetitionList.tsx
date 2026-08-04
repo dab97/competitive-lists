@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import {
   Table,
   TableBody,
@@ -45,6 +45,12 @@ export default function CompetitionList({ applicants, program }: CompetitionList
   const minScore = admittedApplicants.length > 0
     ? Math.min(...admittedApplicants.map(a => a.totalScore))
     : null;
+
+  // Индекс последнего зачисленного в рейтинге — после него рисуется черта
+  const lastAdmittedIndex = visibleApplicants.reduce(
+    (lastIdx, a, idx) => (a.status === 'admitted' ? idx : lastIdx),
+    -1
+  );
 
   const handleExport = () => {
     exportToCSV(applicants, `${program.name}_${program.form}_список`);
@@ -174,114 +180,134 @@ export default function CompetitionList({ applicants, program }: CompetitionList
                 const s2 = applicant.subjects?.[1];
                 const s3 = applicant.subjects?.[2];
                 const priorityIndex = applicant.priorities.findIndex(p => p === program.id) + 1;
+                // Позиция этого абитуриента в полном (нефильтрованном) рейтинге
+                const originalIndex = visibleApplicants.indexOf(applicant);
+                const showBudgetLine = lastAdmittedIndex >= 0 && originalIndex === lastAdmittedIndex;
 
                 return (
-                  <TableRow key={`${applicant.fullName}-${index}`}>
-                    <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                    <TableCell>
-                      <button
-                        onClick={() => setSelectedStudent(applicant)}
-                        className="text-left font-semibold hover:text-primary hover:underline transition-colors"
-                      >
-                        {applicant.fullName}
-                      </button>
-                    </TableCell>
-                    <TableCell className="text-center font-black text-lg text-primary">
-                      {formatScore(applicant.totalScore)}
-                    </TableCell>
-                    <TableCell className="text-center font-medium text-amber-600 dark:text-amber-400">
-                      +{formatScore(applicant.achievementScore)}
-                    </TableCell>
-                    <TableCell className="text-center font-medium text-slate-700 dark:text-slate-300">
-                      {formatScore(applicant.subjectsSum)}
-                    </TableCell>
-                    <TableCell className="text-center text-xs">
-                      {s1 ? (
-                        <div>
-                          <div className="text-muted-foreground">{s1.name}</div>
-                          <div className="font-semibold">{formatScore(s1.score)}</div>
+                  <Fragment key={`${applicant.fullName}-${index}`}>
+                    <TableRow>
+                      <TableCell className="text-center font-medium">{index + 1}</TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() => setSelectedStudent(applicant)}
+                          className="text-left font-semibold hover:text-primary hover:underline transition-colors"
+                        >
+                          {applicant.fullName}
+                        </button>
+                      </TableCell>
+                      <TableCell className="text-center font-black text-lg text-primary">
+                        {formatScore(applicant.totalScore)}
+                      </TableCell>
+                      <TableCell className="text-center font-medium text-amber-600 dark:text-amber-400">
+                        +{formatScore(applicant.achievementScore)}
+                      </TableCell>
+                      <TableCell className="text-center font-medium text-slate-700 dark:text-slate-300">
+                        {formatScore(applicant.subjectsSum)}
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        {s1 ? (
+                          <div>
+                            <div className="text-muted-foreground">{s1.name}</div>
+                            <div className="font-semibold">{formatScore(s1.score)}</div>
+                          </div>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        {s2 ? (
+                          <div>
+                            <div className="text-muted-foreground">{s2.name}</div>
+                            <div className="font-semibold">{formatScore(s2.score)}</div>
+                          </div>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        {s3 ? (
+                          <div>
+                            <div className="text-muted-foreground">{s3.name}</div>
+                            <div className="font-semibold">{formatScore(s3.score)}</div>
+                          </div>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="print:hidden">
+                          {applicant.hasRefusal ? (
+                            <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-semibold" title="Отказ от зачисления">
+                              <Ban className="w-4 h-4" />
+                              Отказ
+                            </span>
+                          ) : applicant.hasConsent ? (
+                            <span className="inline-flex items-center text-green-600 dark:text-green-400 font-bold" title="Согласие подано">
+                              <CheckCircle2 className="w-5 h-5" />
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-slate-300 dark:text-slate-600" title="Согласие отсутствует">
+                              <XCircle className="w-4 h-4" />
+                            </span>
+                          )}
                         </div>
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell className="text-center text-xs">
-                      {s2 ? (
-                        <div>
-                          <div className="text-muted-foreground">{s2.name}</div>
-                          <div className="font-semibold">{formatScore(s2.score)}</div>
-                        </div>
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell className="text-center text-xs">
-                      {s3 ? (
-                        <div>
-                          <div className="text-muted-foreground">{s3.name}</div>
-                          <div className="font-semibold">{formatScore(s3.score)}</div>
-                        </div>
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="print:hidden">
-                        {applicant.hasRefusal ? (
-                          <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 text-xs font-semibold" title="Отказ от зачисления">
-                            <Ban className="w-4 h-4" />
-                            Отказ
-                          </span>
-                        ) : applicant.hasConsent ? (
-                          <span className="inline-flex items-center text-green-600 dark:text-green-400 font-bold" title="Согласие подано">
-                            <CheckCircle2 className="w-5 h-5" />
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center text-slate-300 dark:text-slate-600" title="Согласие отсутствует">
-                            <XCircle className="w-4 h-4" />
-                          </span>
-                        )}
-                      </div>
-                      <span className="hidden print:inline font-bold text-xs text-black">
-                        {applicant.hasRefusal ? "Отказ" : applicant.hasConsent ? "Да" : "Нет"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className="print:hidden">
-                        <Badge variant="outline" className="rounded-full px-2 py-0.5">
+                        <span className="hidden print:inline font-bold text-xs text-black">
+                          {applicant.hasRefusal ? "Отказ" : applicant.hasConsent ? "Да" : "Нет"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="print:hidden">
+                          <Badge variant="outline" className="rounded-full px-2 py-0.5">
+                            {priorityIndex > 0 ? priorityIndex : 1}
+                          </Badge>
+                        </span>
+                        <span className="hidden print:inline font-semibold text-xs text-black">
                           {priorityIndex > 0 ? priorityIndex : 1}
-                        </Badge>
-                      </span>
-                      <span className="hidden print:inline font-semibold text-xs text-black">
-                        {priorityIndex > 0 ? priorityIndex : 1}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right pr-4">
-                      <div className="print:hidden">
-                        {applicant.status === 'admitted' ? (
-                          <Badge className="font-normal bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900 dark:text-green-400">
-                            Зачислен
-                          </Badge>
-                        ) : applicant.status === 'admitted_elsewhere' ? (() => {
-                          const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
-                          const label = admProg ? `${admProg.name} (${admProg.form})` : 'Другое направление';
-                          return (
-                            <Badge className="font-normal bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-400 max-w-[160px] truncate">
-                              {label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right pr-4">
+                        <div className="print:hidden">
+                          {applicant.status === 'admitted' ? (
+                            <Badge className="font-normal whitespace-nowrap bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900 dark:text-green-400">
+                              Зачислен
                             </Badge>
-                          );
-                        })() : (
-                          <Badge className="font-normal bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900 dark:text-red-400">
-                            Не зачислен
-                          </Badge>
-                        )}
-                      </div>
-                      <span className="hidden print:inline font-bold text-xs text-black">
-                        {applicant.status === 'admitted'
-                          ? "Зачислен"
-                          : applicant.status === 'admitted_elsewhere'
-                            ? (() => {
-                              const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
-                              return admProg ? `Зачислен (${admProg.name})` : "Зачислен (другое)";
-                            })()
-                            : "Не зачислен"}
-                      </span>
-                    </TableCell>
-                  </TableRow>
+                          ) : applicant.status === 'admitted_elsewhere' ? (() => {
+                            const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
+                            const label = admProg ? `${admProg.name} (${admProg.form})` : 'Другое направление';
+                            return (
+                              <Badge className="font-normal bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900 dark:text-blue-400 max-w-[160px] truncate">
+                                {label}
+                              </Badge>
+                            );
+                          })() : (
+                            <Badge className="font-normal whitespace-nowrap bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900 dark:text-red-400">
+                              Не зачислен
+                            </Badge>
+                          )}
+                        </div>
+                        <span className="hidden print:inline font-bold text-xs text-black">
+                          {applicant.status === 'admitted'
+                            ? "Зачислен"
+                            : applicant.status === 'admitted_elsewhere'
+                              ? (() => {
+                                  const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
+                                  return admProg ? `Зачислен (${admProg.name})` : "Зачислен (другое)";
+                                })()
+                              : "Не зачислен"}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Граница бюджетных мест */}
+                    {showBudgetLine && (
+                      <TableRow className="print:hidden hover:bg-transparent">
+                        <TableCell colSpan={11} className="p-0 border-0">
+                          <div className="relative flex items-center py-1">
+                            <div className="flex-1 border-t-2 border-green-500" />
+                            <span className="px-3 py-0.5 text-[10px] font-bold text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/60 border border-green-300 dark:border-green-700 rounded-full whitespace-nowrap mx-2">
+                              ✓ Граница бюджетных мест · {program.places} мест
+                            </span>
+                            <div className="flex-1 border-t-2 border-green-500" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
                 );
               })
             ) : (

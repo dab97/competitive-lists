@@ -270,7 +270,7 @@ export default function MainLayout({
 
           <main className="flex-1 overflow-auto">
             <div className="flex justify-center min-h-full">
-              <div className="w-full max-w-7xl px-4 py-6 sm:px-6 fade-in">
+              <div className="w-full max-w-8xl px-4 py-6 sm:px-6 fade-in">
                 {children}
               </div>
             </div>

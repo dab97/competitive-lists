@@ -9,6 +9,9 @@ export default {
   ],
   theme: {
     extend: {
+      maxWidth: {
+        '8xl': '90rem', // 1440px
+      },
       fontFamily: {
         golos: ['Golos', 'sans-serif'],
         bebas: ['Bebas', 'sans-serif'],
