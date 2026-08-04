@@ -41,7 +41,8 @@ export function generateCompetitionLists(
   programs: Program[]
 ): Record<string, Applicant[]> {
   // 1. Determine which program each applicant is admitted to using iterative stable matching
-  const activeApplicants = applicants.filter((a) => !a.hasRefusal);
+  // Only applicants with consent (hasConsent === true) AND without refusal can occupy budget places
+  const activeApplicants = applicants.filter((a) => !a.hasRefusal && a.hasConsent === true);
   const admittedProgramMap = new Map<string, string>(); // fullName -> admitted programId
 
   let changed = true;
@@ -125,6 +126,9 @@ export function generateCompetitionLists(
         let status: 'admitted' | 'admitted_elsewhere' | 'rejected';
         if (applicant.hasRefusal) {
           // Applicant has filed a formal refusal — always rejected regardless of score
+          status = 'rejected';
+        } else if (!applicant.hasConsent) {
+          // Applicant has not submitted consent — cannot occupy a budget place
           status = 'rejected';
         } else if (admittedTo === program.id) {
           status = 'admitted';

@@ -27,10 +27,18 @@ export default function CompetitionList({ applicants, program }: CompetitionList
   const [selectedStudent, setSelectedStudent] = useState<Applicant | null>(null);
   const { programs: allPrograms } = useAdmissionsStore();
 
-  const filteredApplicants = applicants.filter(
+  // Таблица: полный конкурсный рейтинг, кроме тех кто принят на другое направление
+  // Учёт согласия применяется только к подсчёту бюджетных мест (на уровне алгоритма)
+  const visibleApplicants = applicants.filter(a => a.status !== 'admitted_elsewhere');
+
+  const filteredApplicants = visibleApplicants.filter(
     (applicant) =>
       applicant.fullName.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Скрытые строки (принятые на другое направление)
+  const hiddenElsewhere = applicants.filter(a => a.status === 'admitted_elsewhere').length;
+  const hiddenCount = hiddenElsewhere;
 
   const admittedApplicants = applicants.filter(a => a.status === 'admitted');
   const admittedCount = admittedApplicants.length;
@@ -133,6 +141,13 @@ export default function CompetitionList({ applicants, program }: CompetitionList
           )}
         </div>
       </div>
+
+      {/* Info banner: hidden rows */}
+      {hiddenCount > 0 && (
+        <div className="rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/40 px-4 py-2 text-xs text-blue-700 dark:text-blue-300 no-print flex items-center gap-2">
+          <span className="font-semibold">{hiddenCount}</span> абитурент(-ов) скрыто — зачислен(-ы) на другое направление.
+        </div>
+      )}
 
       {/* Competitive Table */}
       <div className="rounded-md border overflow-x-auto">
@@ -259,11 +274,11 @@ export default function CompetitionList({ applicants, program }: CompetitionList
                         {applicant.status === 'admitted'
                           ? "Зачислен"
                           : applicant.status === 'admitted_elsewhere'
-                          ? (() => {
+                            ? (() => {
                               const admProg = allPrograms.find(p => p.id === applicant.admittedToProgramId);
                               return admProg ? `Зачислен (${admProg.name})` : "Зачислен (другое)";
                             })()
-                          : "Не зачислен"}
+                            : "Не зачислен"}
                       </span>
                     </TableCell>
                   </TableRow>

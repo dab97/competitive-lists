@@ -49,7 +49,7 @@ export const useAdmissionsStore = create<AdmissionsState>()(
     {
       name: 'admissions-storage',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
       migrate: (persistedState: any, version: number) => {
         if (version < 2) {
           // Migrate: add empty programScores to old cached applicants
@@ -58,6 +58,16 @@ export const useAdmissionsStore = create<AdmissionsState>()(
               ...a,
               programScores: a.programScores ?? {},
             }));
+          }
+        }
+        if (version < 3) {
+          // Migrate: recompute competitionLists with new consent-aware algorithm
+          const applicants = persistedState?.applicants ?? [];
+          const programs = persistedState?.programs ?? defaultPrograms;
+          if (Array.isArray(applicants) && applicants.length > 0) {
+            persistedState.competitionLists = generateCompetitionLists(applicants, programs);
+          } else {
+            persistedState.competitionLists = {};
           }
         }
         return persistedState;
